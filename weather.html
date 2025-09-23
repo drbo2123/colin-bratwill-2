@@ -5,191 +5,76 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Weather & Forecast - Colin Bratwill</title>
 <link rel="stylesheet" href="css/style.css">
-
-<!-- Leaflet CSS -->
-<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
-
-<!-- Chart.js -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
 <style>
-  /* Weather-specific overrides */
-  .weather-box, .warning-box, .forecast-box {
-    background: rgba(21,24,35,0.9);
-    padding: 1.5rem;
-    border-radius: 10px;
-    margin: 1rem 0;
-    box-shadow: 0 0 15px rgba(0,0,0,0.7);
-  }
-  .warning {
-    color: #ff5555;
-    font-weight: bold;
-  }
-  #weather-map {
-    height: 400px;
-    width: 90%;
-    max-width: 800px;
-    margin: 1rem 0;
-    border-radius: 10px;
-    box-shadow: 0 0 15px rgba(0,0,0,0.7);
-  }
-  canvas {
-    max-width: 800px;
-    width: 90%;
-    margin: 1rem 0;
-  }
-  .weather-icon {
-    vertical-align: middle;
-    width: 50px;
-    height: 50px;
-  }
+body { background: linear-gradient(to bottom, #0b0d13, #1b1e2a); color: #e0e6f0; font-family: Arial,sans-serif; text-align: center; }
+.weather-box, .forecast-box { background: rgba(21,24,35,0.9); padding: 1.5rem; border-radius: 10px; margin: 1rem auto; max-width: 600px; box-shadow: 0 0 15px rgba(0,0,0,0.7); }
+.weather-icon { width: 50px; height: 50px; vertical-align: middle; }
 </style>
 </head>
 <body>
+<h1>Weather & Forecast</h1>
 
-<header>
-  <nav class="navbar">
-    <div class="logo">Colin Bratwill</div>
-    <ul class="nav-links">
-      <li><a href="index.html">Home</a></li>
-      <li><a href="gallery.html">Gallery</a></li>
-      <li><a href="about.html">About</a></li>
-      <li><a href="contact.html">Contact</a></li>
-      <li><a href="weather.html" class="active">Weather</a></li>
-    </ul>
-  </nav>
-</header>
+<div class="weather-box" id="weather">Loading current weather...</div>
 
-<main>
-  <h1>Local Weather & Forecast</h1>
-
-  <!-- Current weather -->
-  <div class="weather-box" id="weather">
-    Loading weather...
-  </div>
-
-  <!-- Weather alerts -->
-  <div class="warning-box" id="warnings">
-    Checking for warnings...
-  </div>
-
-  <!-- Temperature forecast chart -->
-  <div class="forecast-box">
-    <h2>Temperature Forecast (Next 24 Hours)</h2>
-    <canvas id="tempChart"></canvas>
-  </div>
-
-  <!-- Map -->
-  <h2>Live Weather Map</h2>
-  <div id="weather-map"></div>
-
-</main>
-
-<footer>
-  &copy; 2025 Colin Bratwill – Storm Chasing Adventures
-</footer>
-
-<!-- Leaflet JS -->
-<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<div class="forecast-box">
+<h2>Next 24 Hours Temperature</h2>
+<canvas id="tempChart"></canvas>
+</div>
 
 <script>
-const apiKey = "e7a53347ceb851f770d375c25a672aa0"; // Replace with your key
+const apiKey = "YOUR_OPENWEATHERMAP_API_KEY"; // Replace with your key
+
+// Example: London if geolocation fails
+let lat = 51.5074, lon = -0.1278;
 
 if (navigator.geolocation) {
-  navigator.geolocation.getCurrentPosition(async position => {
-    const lat = position.coords.latitude;
-    const lon = position.coords.longitude;
+  navigator.geolocation.getCurrentPosition(pos => { lat = pos.coords.latitude; lon = pos.coords.longitude; fetchWeather(); }, fetchWeather);
+} else { fetchWeather(); }
 
-    try {
-      // Current weather
-      const weatherRes = await fetch(`https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${apiKey}&units=metric`);
-      const weatherData = await weatherRes.json();
-      const icon = `http://openweathermap.org/img/wn/${weatherData.weather[0].icon}@2x.png`;
-      document.getElementById('weather').innerHTML = `
-        <h2>${weatherData.name}, ${weatherData.sys.country}</h2>
-        <p><img src="${icon}" class="weather-icon"> ${weatherData.weather[0].description}</p>
-        <p>Temperature: ${weatherData.main.temp}°C</p>
-        <p>Humidity: ${weatherData.main.humidity}%</p>
-        <p>Wind Speed: ${weatherData.wind.speed} m/s</p>
-      `;
+async function fetchWeather() {
+  try {
+    // Current weather
+    const resCur = await fetch(`https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&units=metric&appid=${apiKey}`);
+    const dataCur = await resCur.json();
+    const icon = `http://openweathermap.org/img/wn/${dataCur.weather[0].icon}@2x.png`;
+    document.getElementById('weather').innerHTML = `
+      <h2>${dataCur.name}, ${dataCur.sys.country}</h2>
+      <p><img src="${icon}" class="weather-icon"> ${dataCur.weather[0].description}</p>
+      <p>Temperature: ${dataCur.main.temp}°C</p>
+      <p>Humidity: ${dataCur.main.humidity}%</p>
+      <p>Wind Speed: ${dataCur.wind.speed} m/s</p>
+    `;
 
-      // Weather alerts
-      const oneCallRes = await fetch(`https://api.openweathermap.org/data/2.5/onecall?lat=${lat}&lon=${lon}&appid=${apiKey}&units=metric`);
-      const oneCallData = await oneCallRes.json();
-      const alertsBox = document.getElementById('warnings');
-      if (oneCallData.alerts && oneCallData.alerts.length > 0) {
-        alertsBox.innerHTML = "<h3>⚠️ Weather Alerts:</h3>";
-        oneCallData.alerts.forEach(alert => {
-          alertsBox.innerHTML += `<p class="warning">${alert.event}: ${alert.description}</p>`;
-        });
-      } else {
-        alertsBox.innerHTML = "<p>No active weather alerts.</p>";
-      }
+    // Forecast (next 8 x 3-hour = 24 hours)
+    const resF = await fetch(`https://api.openweathermap.org/data/2.5/forecast?lat=${lat}&lon=${lon}&units=metric&appid=${apiKey}`);
+    const dataF = await resF.json();
+    const next8 = dataF.list.slice(0,8);
+    const labels = next8.map(f => new Date(f.dt * 1000).getHours() + ":00");
+    const temps = next8.map(f => f.main.temp);
 
-      // Forecast chart (next 24 hours)
-      const forecastRes = await fetch(`https://api.openweathermap.org/data/2.5/forecast?lat=${lat}&lon=${lon}&appid=${apiKey}&units=metric`);
-      const forecastData = await forecastRes.json();
-      const next8 = forecastData.list.slice(0, 8); // 8 x 3-hour intervals = 24 hours
-      const labels = next8.map(f => new Date(f.dt * 1000).getHours() + ':00');
-      const temps = next8.map(f => f.main.temp);
+    const ctx = document.getElementById('tempChart').getContext('2d');
+    new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [{
+          label: 'Temperature °C',
+          data: temps,
+          borderColor: '#77c8ff',
+          backgroundColor: 'rgba(119,200,255,0.2)',
+          fill: true,
+          tension: 0.3
+        }]
+      },
+      options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: false } } }
+    });
 
-      const ctx = document.getElementById('tempChart').getContext('2d');
-      new Chart(ctx, {
-        type: 'line',
-        data: {
-          labels: labels,
-          datasets: [{
-            label: 'Temperature (°C)',
-            data: temps,
-            borderColor: '#77c8ff',
-            backgroundColor: 'rgba(119, 200, 255, 0.2)',
-            fill: true,
-            tension: 0.3
-          }]
-        },
-        options: {
-          responsive: true,
-          plugins: {
-            legend: { display: false },
-          },
-          scales: {
-            y: { beginAtZero: false }
-          }
-        }
-      });
-
-      // Leaflet map
-      const map = L.map('weather-map').setView([lat, lon], 6);
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        maxZoom: 19,
-        attribution: '&copy; OpenStreetMap contributors'
-      }).addTo(map);
-
-      // Marker for current location
-      L.marker([lat, lon]).addTo(map).bindPopup("You are here").openPopup();
-
-      // Optional: precipitation overlay
-      L.tileLayer(`https://tile.openweathermap.org/map/precipitation_new/{z}/{x}/{y}.png?appid=${apiKey}`, {
-        opacity: 0.5,
-        attribution: 'Weather data &copy; OpenWeatherMap'
-      }).addTo(map);
-
-    } catch (err) {
-      document.getElementById('weather').innerText = "Error fetching weather.";
-      document.getElementById('warnings').innerText = "Error fetching alerts.";
-      console.error(err);
-    }
-
-  }, () => {
-    document.getElementById('weather').innerText = "Geolocation not allowed.";
-    document.getElementById('warnings').innerText = "Cannot fetch alerts without location.";
-  });
-} else {
-  document.getElementById('weather').innerText = "Geolocation not supported.";
-  document.getElementById('warnings').innerText = "Cannot fetch alerts without location.";
+  } catch(e) {
+    document.getElementById('weather').innerText = "Error fetching weather.";
+    console.error(e);
+  }
 }
 </script>
-
 </body>
 </html>
-
