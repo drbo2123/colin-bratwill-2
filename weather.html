@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Weather & Warnings</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: linear-gradient(to bottom, #0b0d13, #1b1e2a);
+      color: #e0e6f0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 2rem;
+    }
+    h1 {
+      color: #77c8ff;
+      text-shadow: 0 0 10px #000;
+    }
+    .weather-box, .warning-box {
+      background: #151823;
+      padding: 1.5rem;
+      border-radius: 10px;
+      margin: 1rem 0;
+      width: 90%;
+      max-width: 400px;
+      box-shadow: 0 0 15px rgba(0,0,0,0.7);
+    }
+    .warning {
+      color: #ff5555;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Local Weather & Warnings</h1>
+
+  <div class="weather-box" id="weather">
+    Loading weather...
+  </div>
+
+  <div class="warning-box" id="warnings">
+    Checking for warnings...
+  </div>
+
+  <script>
+    const apiKey = "YOUR_OPENWEATHERMAP_API_KEY"; // <-- replace with your API key
+
+    // Get user location
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(position => {
+        const lat = position.coords.latitude;
+        const lon = position.coords.longitude;
+
+        // Fetch current weather
+        fetch(`https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${apiKey}&units=metric`)
+          .then(res => res.json())
+          .then(data => {
+            document.getElementById('weather').innerHTML = `
+              <h2>${data.name}, ${data.sys.country}</h2>
+              <p>Temperature: ${data.main.temp}°C</p>
+              <p>Weather: ${data.weather[0].description}</p>
+              <p>Humidity: ${data.main.humidity}%</p>
+              <p>Wind Speed: ${data.wind.speed} m/s</p>
+            `;
+          });
+
+        // Fetch weather alerts
+        fetch(`https://api.openweathermap.org/data/2.5/onecall?lat=${lat}&lon=${lon}&appid=${apiKey}&units=metric`)
+          .then(res => res.json())
+          .then(data => {
+            const alertsBox = document.getElementById('warnings');
+            if (data.alerts && data.alerts.length > 0) {
+              alertsBox.innerHTML = "<h3>⚠️ Weather Alerts:</h3>";
+              data.alerts.forEach(alert => {
+                alertsBox.innerHTML += `<p class="warning">${alert.event}: ${alert.description}</p>`;
+              });
+            } else {
+              alertsBox.innerHTML = "<p>No active weather alerts.</p>";
+            }
+          });
+
+      }, error => {
+        document.getElementById('weather').innerText = "Geolocation not allowed.";
+        document.getElementById('warnings').innerText = "Cannot fetch alerts without location.";
+      });
+    } else {
+      document.getElementById('weather').innerText = "Geolocation not supported.";
+      document.getElementById('warnings').innerText = "Cannot fetch alerts without location.";
+    }
+  </script>
+
+</body>
+</html>
