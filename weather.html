@@ -3,78 +3,194 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Weather & Forecast - Colin Bratwill</title>
+<title>MSN-Style Weather - Colin Bratwill</title>
+
+<!-- CSS -->
 <link rel="stylesheet" href="css/style.css">
+
+<!-- Leaflet CSS -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+
+<!-- Chart.js -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
 <style>
-body { background: linear-gradient(to bottom, #0b0d13, #1b1e2a); color: #e0e6f0; font-family: Arial,sans-serif; text-align: center; }
-.weather-box, .forecast-box { background: rgba(21,24,35,0.9); padding: 1.5rem; border-radius: 10px; margin: 1rem auto; max-width: 600px; box-shadow: 0 0 15px rgba(0,0,0,0.7); }
-.weather-icon { width: 50px; height: 50px; vertical-align: middle; }
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+  background: linear-gradient(to bottom, #0b0d13, #1b1e2a);
+  color: #e0e6f0;
+}
+.navbar { display:flex; justify-content:space-between; align-items:center; padding:1rem; background:#151823; }
+.nav-links { list-style:none; display:flex; gap:1rem; }
+.nav-links li a { color:#e0e6f0; text-decoration:none; }
+.nav-links li a.active { color:#77c8ff; }
+.main { padding:1rem; max-width:1200px; margin:auto; }
+.weather-panel, .alerts-panel, .hourly-forecast, .daily-forecast, .forecast-chart, #weather-map {
+  background: rgba(21,24,35,0.9);
+  border-radius: 10px;
+  padding: 1rem;
+  margin: 1rem 0;
+  box-shadow: 0 0 15px rgba(0,0,0,0.7);
+}
+.weather-icon { width:80px; height:80px; vertical-align:middle; }
+.hourly-blocks { display:flex; overflow-x:auto; gap:1rem; padding:0.5rem 0; }
+.hourly-block { min-width:60px; text-align:center; background:rgba(34,37,54,0.8); border-radius:8px; padding:0.5rem; }
+.daily-cards { display:flex; flex-wrap:wrap; gap:1rem; justify-content:center; }
+.daily-card { background:rgba(34,37,54,0.8); padding:0.5rem; border-radius:8px; text-align:center; width:90px; }
+canvas { width:100%; max-width:800px; margin:auto; }
+#weather-map { height:400px; width:100%; border-radius:10px; }
 </style>
 </head>
+
 <body>
-<h1>Weather & Forecast</h1>
 
-<div class="weather-box" id="weather">Loading current weather...</div>
+<header class="navbar">
+  <div class="logo">Colin Bratwill</div>
+  <ul class="nav-links">
+    <li><a href="index.html">Home</a></li>
+    <li><a href="gallery.html">Gallery</a></li>
+    <li><a href="about.html">About</a></li>
+    <li><a href="contact.html">Contact</a></li>
+    <li><a href="msnstyle-weather.html" class="active">Weather</a></li>
+  </ul>
+</header>
 
-<div class="forecast-box">
-<h2>Next 24 Hours Temperature</h2>
-<canvas id="tempChart"></canvas>
-</div>
+<main class="main">
+
+  <!-- Current Weather -->
+  <div class="weather-panel" id="weather-panel">
+    Loading current weather...
+  </div>
+
+  <!-- Alerts -->
+  <div class="alerts-panel" id="alerts-panel">
+    Checking for alerts...
+  </div>
+
+  <!-- Hourly Forecast -->
+  <div class="hourly-forecast">
+    <h2>Hourly Forecast</h2>
+    <div class="hourly-blocks" id="hourly-blocks"></div>
+  </div>
+
+  <!-- Temperature Graph -->
+  <div class="forecast-chart">
+    <h2>Temperature Trend</h2>
+    <canvas id="tempChart"></canvas>
+  </div>
+
+  <!-- Daily Forecast -->
+  <div class="daily-forecast">
+    <h2>7-Day Forecast</h2>
+    <div class="daily-cards" id="daily-cards"></div>
+  </div>
+
+  <!-- Map -->
+  <h2>Live Weather Map</h2>
+  <div id="weather-map"></div>
+
+</main>
+
+<!-- Leaflet JS -->
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 
 <script>
 const apiKey = "YOUR_OPENWEATHERMAP_API_KEY"; // Replace with your key
-
-// Example: London if geolocation fails
-let lat = 51.5074, lon = -0.1278;
+let lat = 51.5074, lon = -0.1278; // fallback London
 
 if (navigator.geolocation) {
-  navigator.geolocation.getCurrentPosition(pos => { lat = pos.coords.latitude; lon = pos.coords.longitude; fetchWeather(); }, fetchWeather);
-} else { fetchWeather(); }
+  navigator.geolocation.getCurrentPosition(pos => { lat = pos.coords.latitude; lon = pos.coords.longitude; loadWeather(); }, loadWeather);
+} else { loadWeather(); }
 
-async function fetchWeather() {
+async function loadWeather() {
   try {
-    // Current weather
-    const resCur = await fetch(`https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&units=metric&appid=${apiKey}`);
-    const dataCur = await resCur.json();
-    const icon = `http://openweathermap.org/img/wn/${dataCur.weather[0].icon}@2x.png`;
-    document.getElementById('weather').innerHTML = `
-      <h2>${dataCur.name}, ${dataCur.sys.country}</h2>
-      <p><img src="${icon}" class="weather-icon"> ${dataCur.weather[0].description}</p>
-      <p>Temperature: ${dataCur.main.temp}°C</p>
-      <p>Humidity: ${dataCur.main.humidity}%</p>
-      <p>Wind Speed: ${dataCur.wind.speed} m/s</p>
+    // Fetch OneCall data
+    const res = await fetch(`https://api.openweathermap.org/data/2.5/onecall?lat=${lat}&lon=${lon}&exclude=minutely&units=metric&appid=${apiKey}`);
+    const data = await res.json();
+
+    // --- Current Weather Panel ---
+    const cur = data.current;
+    const iconUrl = `http://openweathermap.org/img/wn/${cur.weather[0].icon}@2x.png`;
+    document.getElementById('weather-panel').innerHTML = `
+      <h2>${cur.temp}°C - ${cur.weather[0].description}</h2>
+      <img src="${iconUrl}" class="weather-icon">
+      <p>Humidity: ${cur.humidity}% | Wind: ${cur.wind_speed} m/s | Feels like: ${cur.feels_like}°C</p>
     `;
 
-    // Forecast (next 8 x 3-hour = 24 hours)
-    const resF = await fetch(`https://api.openweathermap.org/data/2.5/forecast?lat=${lat}&lon=${lon}&units=metric&appid=${apiKey}`);
-    const dataF = await resF.json();
-    const next8 = dataF.list.slice(0,8);
-    const labels = next8.map(f => new Date(f.dt * 1000).getHours() + ":00");
-    const temps = next8.map(f => f.main.temp);
+    // --- Alerts ---
+    const alertsBox = document.getElementById('alerts-panel');
+    if(data.alerts && data.alerts.length>0){
+      alertsBox.innerHTML = "<h3>⚠️ Weather Alerts</h3>";
+      data.alerts.forEach(alert => {
+        alertsBox.innerHTML += `<p style="color:#ff5555;font-weight:bold;">${alert.event}: ${alert.description}</p>`;
+      });
+    } else { alertsBox.innerHTML = "<p>No active alerts</p>"; }
 
-    const ctx = document.getElementById('tempChart').getContext('2d');
-    new Chart(ctx, {
-      type: 'line',
-      data: {
-        labels: labels,
-        datasets: [{
-          label: 'Temperature °C',
-          data: temps,
-          borderColor: '#77c8ff',
-          backgroundColor: 'rgba(119,200,255,0.2)',
-          fill: true,
-          tension: 0.3
-        }]
-      },
-      options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: false } } }
+    // --- Hourly Forecast Blocks ---
+    const hourlyContainer = document.getElementById('hourly-blocks');
+    hourlyContainer.innerHTML = '';
+    data.hourly.slice(0,12).forEach(hour => {
+      const time = new Date(hour.dt * 1000).getHours() + ':00';
+      const icon = `http://openweathermap.org/img/wn/${hour.weather[0].icon}.png`;
+      hourlyContainer.innerHTML += `
+        <div class="hourly-block">
+          <p>${time}</p>
+          <img src="${icon}" style="width:40px;height:40px;">
+          <p>${hour.temp.toFixed(1)}°C</p>
+        </div>
+      `;
     });
 
-  } catch(e) {
-    document.getElementById('weather').innerText = "Error fetching weather.";
-    console.error(e);
+    // --- Temperature Graph ---
+    const ctx = document.getElementById('tempChart').getContext('2d');
+    const temps = data.hourly.slice(0,12).map(h=>h.temp);
+    const labels = data.hourly.slice(0,12).map(h=>new Date(h.dt*1000).getHours()+':00');
+    new Chart(ctx, {
+      type:'line',
+      data:{
+        labels: labels,
+        datasets:[{
+          label:'Temperature °C',
+          data: temps,
+          borderColor:'#77c8ff',
+          backgroundColor:'rgba(119,200,255,0.2)',
+          fill:true,
+          tension:0.3
+        }]
+      },
+      options:{responsive:true, plugins:{legend:{display:false}}, scales:{y:{beginAtZero:false}}}
+    });
+
+    // --- Daily Forecast Cards ---
+    const dailyContainer = document.getElementById('daily-cards');
+    dailyContainer.innerHTML='';
+    data.daily.slice(0,7).forEach(day=>{
+      const date = new Date(day.dt*1000);
+      const dayName = date.toLocaleDateString('en-US',{weekday:'short'});
+      const icon = `http://openweathermap.org/img/wn/${day.weather[0].icon}.png`;
+      dailyContainer.innerHTML+=`
+        <div class="daily-card">
+          <p>${dayName}</p>
+          <img src="${icon}" style="width:40px;height:40px;">
+          <p>${day.temp.max.toFixed(0)}°/${day.temp.min.toFixed(0)}°C</p>
+        </div>
+      `;
+    });
+
+    // --- Leaflet Map ---
+    const map = L.map('weather-map').setView([lat, lon],6);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19, attribution:'&copy; OpenStreetMap contributors'}).addTo(map);
+    L.marker([lat, lon]).addTo(map).bindPopup("You are here").openPopup();
+    L.tileLayer(`https://tile.openweathermap.org/map/precipitation_new/{z}/{x}/{y}.png?appid=${apiKey}`,{opacity:0.5, attribution:'Weather &copy; OpenWeatherMap'}).addTo(map);
+
+  } catch(err){
+    console.error(err);
+    document.getElementById('weather-panel').innerText='Error loading weather';
+    document.getElementById('alerts-panel').innerText='';
   }
 }
 </script>
+
 </body>
 </html>
